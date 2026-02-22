@@ -1,3 +1,4 @@
+# import libraries
 import tkinter as tk
 from tkinter import ttk, messagebox, Toplevel
 import os
@@ -257,3 +258,4 @@ for i, (text, color, cmd) in enumerate(buttons):
     ).grid(row=0, column=i, padx=12)
 
 resturaunt.mainloop()
+
