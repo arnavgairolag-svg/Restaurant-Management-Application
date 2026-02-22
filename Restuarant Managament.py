@@ -1,201 +1,259 @@
 import tkinter as tk
-from tkinter import ttk
-from tkinter import Toplevel
+from tkinter import ttk, messagebox, Toplevel
+import os
+from datetime import datetime
 
-price_menu = {"Breakfast":15,"Lunch":18,"Dinner":22,"Drinks":8}
+# simple price list
+price_menu = {
+    "Breakfast": 15,
+    "Lunch": 18,
+    "Dinner": 22,
+    "Drinks": 8
+}
 
-def restart_again():
-    Cost.config(state="normal")
-    Cost.delete(0,tk.END)             
-    Cost.config(state="disabled")
-                
-    Tax.config(state="normal")
-    Tax.delete(0,tk.END)
-    Tax.config(state="disabled")
+# make sure order file exists
+if not os.path.exists("Data.txt"):
+    with open("Data.txt", "w") as f:
+        f.write("0")
 
-    Total.config(state="normal")
-    Total.delete(0,tk.END)
-    Total.config(state="disabled")
+# small helper so it doesn’t crash
+def get_number(entry):
+    value = entry.get().strip()
+    if value == "":
+        return 0
+    if not value.isdigit():
+        messagebox.showerror("Invalid Input 😅", "Please enter whole numbers only.")
+        raise ValueError
+    return int(value)
 
-def sum_prices():
-    if Breakfast.get():
-        Breakfast_bill = int(Breakfast.get())*price_menu["Breakfast"]
-    else:
-        Breakfast_bill = 0
+# clears cost section only
+def clear_bill():
+    for entry in [Cost, Tax, Total]:
+        entry.config(state="normal")
+        entry.delete(0, tk.END)
+        entry.config(state="readonly")
 
-    if Lunch.get():
-        Lunch_bill = int(Lunch.get())*price_menu["Lunch"]
-    else:
-        Lunch_bill = 0
+# receipt popup
+def show_receipt(order_no, items, cost, tax, total):
+    receipt = Toplevel(resturaunt)
+    receipt.geometry("420x500")
+    receipt.title("🧾 Receipt")
+    receipt.configure(bg="#f8f5f2")
 
-    if Dinner.get():
-        Dinner_bill = int(Dinner.get())*price_menu["Dinner"]
-    else:
-        Dinner_bill = 0
+    title = tk.Label(
+        receipt,
+        text="🧾 Order Receipt",
+        bg="#f8f5f2",
+        fg="#344e41",
+        font=("Segoe UI", 18, "bold")
+    )
+    title.pack(pady=15)
 
-    if Drinks.get():
-        Drinks_bill = int(Drinks.get())*price_menu["Drinks"]
-    else:
-        Drinks_bill = 0
-        
-    file = open("Data.txt")
-    current_order = int(file.read())
-    file.close()
-    new_order = current_order+1
-    
+    box = tk.Frame(receipt, bg="white", bd=1, relief="solid")
+    box.pack(padx=20, pady=10, fill="both", expand=True)
+
+    content = tk.Text(
+        box,
+        bg="white",
+        fg="#2f3e46",
+        font=("Consolas", 11),
+        bd=0
+    )
+    content.pack(padx=15, pady=15, fill="both", expand=True)
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    receipt_text = f"""
+Order Number: {order_no}
+Date: {now}
+----------------------------------------
+Breakfast  x{items[0]}
+Lunch      x{items[1]}
+Dinner     x{items[2]}
+Drinks     x{items[3]}
+----------------------------------------
+Subtotal:   ${cost:.2f}
+Tax (30%):  ${tax:.2f}
+----------------------------------------
+TOTAL:      ${total:.2f}
+----------------------------------------
+Thank you for dining with us 🌿
+"""
+
+    content.insert("1.0", receipt_text)
+    content.config(state="disabled")
+
+    tk.Button(
+        receipt,
+        text="Close",
+        bg="#a3b18a",
+        fg="white",
+        font=("Segoe UI", 10, "bold"),
+        command=receipt.destroy
+    ).pack(pady=15)
+
+# main calculation
+def calculate_total():
+    try:
+        b = get_number(Breakfast)
+        l = get_number(Lunch)
+        d = get_number(Dinner)
+        dr = get_number(Drinks)
+    except ValueError:
+        return
+
+    breakfast_bill = b * price_menu["Breakfast"]
+    lunch_bill = l * price_menu["Lunch"]
+    dinner_bill = d * price_menu["Dinner"]
+    drinks_bill = dr * price_menu["Drinks"]
+
+    with open("Data.txt", "r") as file:
+        current_order = int(file.read())
+
+    new_order = current_order + 1
+
+    with open("Data.txt", "w") as file:
+        file.write(str(new_order))
+
     Number.config(state="normal")
     Number.delete(0, tk.END)
-    Number.insert(tk.END, str(new_order))
-    Number.config(state="disabled")
-    
-    file = open("Data.txt","w")
-    file.write(str(new_order))
-    file.close()
-    
-    Total_cost = Breakfast_bill+Lunch_bill+Dinner_bill+Drinks_bill
-    Total_tax = 30*Total_cost/100
-    Total_bill = Total_cost+Total_tax
-    
-    restart_again()
-    
+    Number.insert(0, str(new_order))
+    Number.config(state="readonly")
+
+    subtotal = breakfast_bill + lunch_bill + dinner_bill + drinks_bill
+    tax = round(subtotal * 0.30, 2)
+    total = round(subtotal + tax, 2)
+
+    clear_bill()
+
     Cost.config(state="normal")
-    Cost.insert(tk.END, Total_cost)
-    Cost.config(state="disabled")
+    Cost.insert(0, f"{subtotal:.2f}")
+    Cost.config(state="readonly")
 
     Tax.config(state="normal")
-    Tax.insert(tk.END, Total_tax)
-    Tax.config(state="disabled")
+    Tax.insert(0, f"{tax:.2f}")
+    Tax.config(state="readonly")
 
     Total.config(state="normal")
-    Total.insert(tk.END, Total_bill)
-    Total.config(state="disabled")
+    Total.insert(0, f"{total:.2f}")
+    Total.config(state="readonly")
 
+    show_receipt(new_order, [b, l, d, dr], subtotal, tax, total)
 
+# reset everything
 def restart():
     Number.config(state="normal")
-    Number.delete(0,tk.END)
-    Number.config(state="disabled")
-    
-    Breakfast.delete(0,tk.END)
-    
-    Lunch.delete(0,tk.END)
+    Number.delete(0, tk.END)
+    Number.config(state="readonly")
 
-    Dinner.delete(0,tk.END)
-    
-    Drinks.delete(0,tk.END)
-    
-    Cost.config(state="normal")
-    Cost.delete(0,tk.END)             
-    Cost.config(state="disabled")
-                
-    Tax.config(state="normal")
-    Tax.delete(0,tk.END)
-    Tax.config(state="disabled")
+    for entry in [Breakfast, Lunch, Dinner, Drinks]:
+        entry.delete(0, tk.END)
 
-    Total.config(state="normal")
-    Total.delete(0,tk.END)
-    Total.config(state="disabled")
-               
+    clear_bill()
+
+# price popup
 def show_prices():
     prices = Toplevel(resturaunt)
-    prices.geometry("500x400")
-    prices.title("-$-Prices-of-Each-Item-$-")
-    prices.configure(bg="light green")
+    prices.geometry("350x300")
+    prices.title("Menu Prices")
+    prices.configure(bg="#f8f5f2")
 
-    price_title = tk.Label(prices, text="✰-$-Prices-$-✰",bg="light green",fg="dark green",font="Normal 20 bold")
-    price_title.pack(pady=10)
+    tk.Label(
+        prices,
+        text="🍽️ Menu Prices",
+        bg="#f8f5f2",
+        fg="#344e41",
+        font=("Segoe UI", 16, "bold")
+    ).pack(pady=15)
 
-    menu_outline = tk.Frame(prices, bd=8, bg="green", relief="ridge")
-    menu_outline.pack(pady=10)
+    tree = ttk.Treeview(prices, columns=("Item", "Price"), show="headings")
+    tree.pack(pady=10)
 
-    menu = ttk.Treeview(menu_outline, column=("Column1","Column2"), show="headings")
-    menu.pack()
+    tree.heading("Item", text="Item")
+    tree.heading("Price", text="Price ($)")
 
-    menu.heading("Column1", text="[:::] ITEM [:::]")
-    menu.heading("Column2", text="$ PRICE $")
+    for item, price in price_menu.items():
+        tree.insert("", "end", values=(item, price))
 
-    item_costs = [("-o Breakfast meal o-","$15"),("C0D lunch meal C0D","$18"),("l> Dinner meal <l","$22"),("\_/ drinks \_/","$8")]
+    tk.Button(
+        prices,
+        text="Close",
+        bg="#a3b18a",
+        fg="white",
+        font=("Segoe UI", 10, "bold"),
+        command=prices.destroy
+    ).pack(pady=10)
 
-    for i in item_costs:
-        menu.insert("","end",values=i)
-
-    exit_price = tk.Button(prices, text="Exit ---->", bg="red", fg="brown",font=("Arial",18),width=20,command=prices.destroy)
-    exit_price.pack(pady=20)
+# ---------------- MAIN WINDOW ----------------
 
 resturaunt = tk.Tk()
-resturaunt.geometry("640x430")
-resturaunt.title("Restaurant system")
-resturaunt.configure(bg="tan")
+resturaunt.geometry("760x560")
+resturaunt.title("Restaurant Management System")
+resturaunt.configure(bg="#f0ead2")
 
-label = tk.Label(text="✦-Restaurant Management System-✦",bg="tan",fg="brown",font="Normal 20 bold")
-label.pack(pady=10)
+title = tk.Label(
+    resturaunt,
+    text="🍽️ Restaurant Management System",
+    bg="#f0ead2",
+    fg="#344e41",
+    font=("Segoe UI", 24, "bold")
+)
+title.pack(pady=25)
 
-label1 = tk.Label(text="Order nu -",bg="tan",fg="brown")
-label1.place(x=50,y=70)
+order_frame = tk.Frame(resturaunt, bg="#f0ead2")
+order_frame.pack(pady=10)
 
-Number = tk.Entry()
-Number.place(x=130,y=70)
-Number.config(state="disabled")
+labels = ["🧾 Order No:", "🍳 Breakfast:", "🥪 Lunch:", "🍝 Dinner:", "🥤 Drinks:"]
+entries = []
 
-label2 = tk.Label(text="Breakfast meal -",bg="tan",fg="brown")
-label2.place(x=50,y=110)
+for i, text in enumerate(labels):
+    tk.Label(order_frame, text=text, bg="#f0ead2",
+             fg="#3a5a40", font=("Segoe UI", 12)).grid(row=i, column=0, pady=8, sticky="e")
 
-Breakfast = tk.Entry()
-Breakfast.place(x=175,y=110)
+    entry = tk.Entry(order_frame, width=20, font=("Segoe UI", 11))
+    entry.grid(row=i, column=1, padx=10)
 
-label3 = tk.Label(text="Lunch meal -",bg="tan",fg="brown")
-label3.place(x=50,y=150)
+    entries.append(entry)
 
-Lunch = tk.Entry()
-Lunch.place(x=150,y=150)
+Number, Breakfast, Lunch, Dinner, Drinks = entries
+Number.config(state="readonly")
 
-label3 = tk.Label(text="Dinner meal -",bg="tan",fg="brown")
-label3.place(x=50,y=190)
+bill_frame = tk.Frame(resturaunt, bg="#f0ead2")
+bill_frame.pack(pady=25)
 
-Dinner = tk.Entry()
-Dinner.place(x=155,y=190)
+bill_labels = ["💰 Subtotal:", "🧾 Tax (30%):", "💵 Total:"]
+bill_entries = []
 
-label4 = tk.Label(text="Drinks -",bg="tan",fg="brown")
-label4.place(x=50,y=230)
+for i, text in enumerate(bill_labels):
+    tk.Label(bill_frame, text=text, bg="#f0ead2",
+             fg="#3a5a40", font=("Segoe UI", 12)).grid(row=i, column=0, pady=8, sticky="e")
 
-Drinks = tk.Entry()
-Drinks.place(x=110,y=230)
+    entry = tk.Entry(bill_frame, width=20, font=("Segoe UI", 11), state="readonly")
+    entry.grid(row=i, column=1, padx=10)
 
-label5 = tk.Label(text="Cost - $",bg="tan",fg="brown")
-label5.place(x=350,y=70)
+    bill_entries.append(entry)
 
-Cost = tk.Entry()
-Cost.place(x=408,y=70)
-Cost.config(state="disabled")
+Cost, Tax, Total = bill_entries
 
-label6 = tk.Label(text="Tax -",bg="tan",fg="brown")
-label6.place(x=360,y=150)
+button_frame = tk.Frame(resturaunt, bg="#f0ead2")
+button_frame.pack(pady=30)
 
-Tax = tk.Entry()
-Tax.place(x=400,y=150)
-Tax.config(state="disabled")
+buttons = [
+    ("📋 Prices", "#588157", show_prices),
+    ("🧮 Calculate", "#344e41", calculate_total),
+    ("🔄 Restart", "#6c757d", restart),
+    ("🚪 Exit", "#bc4749", resturaunt.destroy)
+]
 
-label7 = tk.Label(text="Total -",bg="tan",fg="brown")
-label7.place(x=330,y=230)
-
-Total = tk.Entry()
-Total.place(x=380,y=230)
-Total.config(state="disabled")
-
-Price_button = tk.Button(text="$-Price-$",highlightbackground="green",highlightcolor="dark green", highlightthickness=3,fg="dark green", font=("Arial",12), bg="light green",command=show_prices)
-
-Price_button.place(x=30,y=280)
-
-Total_button = tk.Button(text="<-- Total -->",highlightbackground="dark blue",highlightcolor="dark blue", highlightthickness=3,fg="dark blue", font=("Arial",12), bg="light blue",command=sum_prices)
-
-Total_button.place(x=145,y=280)
-
-Restart_button = tk.Button(text="o Restart o",highlightbackground="purple",highlightcolor="purple", highlightthickness=3,fg="purple", font=("Arial",12), bg="violet",command=restart)
-
-Restart_button.place(x=290,y=280)
-
-Exit_button = tk.Button(text="X Exit -->",highlightbackground="brown",highlightcolor="brown", highlightthickness=3,fg="brown", font=("Arial",12), bg="red",command=resturaunt.destroy)
-
-Exit_button.place(x=420,y=280)
+for i, (text, color, cmd) in enumerate(buttons):
+    tk.Button(
+        button_frame,
+        text=text,
+        width=15,
+        bg=color,
+        fg="white",
+        font=("Segoe UI", 11, "bold"),
+        command=cmd
+    ).grid(row=0, column=i, padx=12)
 
 resturaunt.mainloop()
